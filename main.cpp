@@ -1,86 +1,134 @@
-// Quick refresher on reading from files,
-// using streams, and using strings.
-
 #include <fstream>
-#include <string>
 #include <sstream>
+#include <string>
 #include <iostream>
+#include <vector>
+
+// Source: https://stackoverflow.com/a/46931770
+std::vector<std::string> split(const std::string& s, char delim) {
+	std::vector<std::string> result;
+	std::stringstream ss(s);
+	std::string item;
+
+	while (getline(ss, item, delim)) {
+		result.push_back(item);
+	}
+
+	return result;
+}
 
 void write_to_file()
 {
-	// Can pass flags as second argument, such as:
-	//    std::ios_base::in -> read-only
-	//	  std::ios_base::out -> write-only
-	//    std::ios_base::trunc -> Open file and destroy existing contents
-	//    std::ios_base::app -> Open file and append to existing contents
-	//    ....
-	std::ofstream my_file("test.txt");
-	my_file << "Hello, I'm a file!\n";
+	// Open an existing file
+	// Can optionally add bitwise OR'd together flags
+	//    as second parameter when opening a file
+	//    to specify opening behavior
+	// Example:
+	//    std::ios_base::in -> open file to be read
+	//    std::ios_base::out -> open file to be written to
+	//    std::ios_base::in | std::ios_base::out
+	//                       -> open file to be read from or written to (default)
+	//    std::ios_base::trunc -> "truncate" -- open file and destroy
+	//							  existing contents
+	//    std::ios_base::app -> "append" -- open file and begin writing
+	//								to end
+	//    Documentation here:
+	//		https://en.cppreference.com/w/cpp/io/basic_fstream/basic_fstream
+	std::fstream my_file("test.txt", std::ios_base::in | std::ios_base::out);
+	my_file << "This is a line in a file\n";
 	my_file << "Here are some numbers:\n";
-	my_file << 12 << " " << 42 << " " << 273.4f << std::endl;
+	my_file << 36 << " " << 42 << " " << 274.3f << std::endl;
 }
 
-void read_words()
+void read_word_from_file()
 {
-	std::ifstream my_file("test.txt");
-	std::string word1;
-	std::string word2;
-	// This reads a single "word" from the file, not a line!
-	my_file >> word1 >> word2;
-	std::cout << word1 << word2 << std::endl;
-}
-
-void read_line()
-{
-	std::ifstream my_file("test.txt");
+	std::fstream my_file("test.txt");
 	std::string line1;
-	// Reads one line from my_file into line1
-	// Consumes '\n' from "my_file", but does not put it
-	//    in line1.
-	std::getline(my_file, line1);
+
+	// stream extraction into string reads
+	// just the first "word"
+	my_file >> line1;
 	std::cout << line1 << std::endl;
+}
+
+void read_line_from_file()
+{
+
+	std::fstream my_file("test.txt");
+	std::string line1;
+	std::string line2;
+
+	std::getline(my_file, line1);
+	std::getline(my_file, line2);
+	std::cout << line1 << std::endl;
+	std::cout << line2 << std::endl;
 	if (line1.back() == '\n')
 	{
-		std::cout << "getline() adds \\n to string\n";
+		std::cout << "line1 ends in a newline\n";
 	}
 	else
 	{
-		std::cout << "getline() skips the endline character\n";
+		std::cout << "line1 does not contain a newline\n";
 	}
 }
 
 void read_whole_file()
 {
 	std::fstream my_file("test.txt");
+
 	// for (int i = 0; i < n; i++)
+	// while (true)
 	for (std::string line; std::getline(my_file, line); )
 	{
 		std::cout << line << std::endl;
 	}
-	std::cout << "Finished reading file.\n";
+}
+
+void read_whole_file_into_words()
+{
+	std::fstream my_file("test.txt");
+
+	// getline() can split on any delimiter, not just '\n'.
+	for (std::string line; std::getline(my_file, line, ' '); )
+	{
+		std::cout << line << std::endl;
+	}
+}
+
+void read_whole_file_and_split_each_line()
+{
+	std::fstream my_file("test.txt");
+
+	for (std::string line; std::getline(my_file, line); )
+	{
+		std::cout << line << std::endl;
+		std::vector<std::string> items = split(line, ' ');
+		std::cout << "This line has " << items.size() << " words\n";
+	}
 }
 
 int main()
 {
-	std::cout << "Hello, world!\n";
-
 	std::fstream my_file("test.txt");
-	// for (int i = 0; i < n; i++)
+	
 	std::string line1;
 	std::string line2;
-	std::string line_with_nums;
+	std::string line_with_numbers;
 	std::getline(my_file, line1);
 	std::getline(my_file, line2);
-	std::getline(my_file, line_with_nums);
-	std::stringstream ss(line_with_nums);
-	// Prefer using strtol()
-	// Can also try using sscanf()
+	std::getline(my_file, line_with_numbers);
+	std::cout << line_with_numbers << std::endl;
+	std::stringstream ss(line_with_numbers);
+
+	// Alternatively, can use
+	// strtol() or sscanf()
 	int x = 0;
 	int y = 0;
 	float z = 0;
 	ss >> x >> y >> z;
-	// Want to test if this worked!
-	float sum = x + y + z;
-	std::cout << "Sum is: " << sum << std::endl;
-	std::cout << line_with_nums << std::endl;
+	if (ss.fail())
+	{
+		std::cout << "Error parsing file\n";
+	}
+	std::cout << "Sum: " << x + y + z << std::endl;
 }
