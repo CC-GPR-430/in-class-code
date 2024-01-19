@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -107,18 +109,10 @@ void read_whole_file_and_split_each_line()
 	}
 }
 
-int main()
+void parse_string_with_sstream(const std::string& str)
 {
-	std::fstream my_file("test.txt");
-	
-	std::string line1;
-	std::string line2;
-	std::string line_with_numbers;
-	std::getline(my_file, line1);
-	std::getline(my_file, line2);
-	std::getline(my_file, line_with_numbers);
-	std::cout << line_with_numbers << std::endl;
-	std::stringstream ss(line_with_numbers);
+
+	std::stringstream ss(str);
 
 	// Alternatively, can use
 	// strtol() or sscanf()
@@ -130,5 +124,61 @@ int main()
 	{
 		std::cout << "Error parsing file\n";
 	}
+
 	std::cout << "Sum: " << x + y + z << std::endl;
+}
+
+void write_int(int* a)
+{
+	*a = 43;
+}
+
+void parse_with_strtol(const std::string& str)
+{
+	const char* beg = str.c_str();
+	char* end;
+	int x = strtol(beg, &end, 10);
+	if (x == 0 && beg == end)
+	{
+		std::cout << "Failed to parse.\n";
+	}
+	std::cout << x << std::endl;
+
+	int y = strtol(end, &end, 10);
+	std::cout << y << std::endl;
+}
+
+int main()
+{
+	/*
+	int x = 0;
+	write_int(&x);
+	std::cout << x;
+
+	return 0;
+	*/
+
+	std::fstream my_file("test.txt");
+	
+	std::string line1;
+	std::string line2;
+	std::string line_with_numbers;
+	std::getline(my_file, line1);
+	std::getline(my_file, line2);
+	std::getline(my_file, line_with_numbers);
+	std::cout << line_with_numbers << std::endl;
+
+	int x, y;
+	float z;
+
+	int num_conversions = sscanf(line_with_numbers.c_str(), "j k l %d %d %f", &x, &y, &z);
+	if (num_conversions != 3)
+	{
+		std::cout << "Failed to convert " << 3 - num_conversions << " values!\n";
+	}
+	else
+	{
+		std::cout << x << " " << y << " " << z << std::endl;
+	}
+
 }
