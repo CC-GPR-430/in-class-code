@@ -1,6 +1,8 @@
 // Quick refresher on reading from files,
 // using streams, and using strings.
 
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <fstream>
 #include <string>
 #include <sstream>
@@ -60,10 +62,58 @@ void read_whole_file()
 	std::cout << "Finished reading file.\n";
 }
 
+void conversion_with_sstream(const std::string& str)
+{
+	std::stringstream ss(str);
+	// Prefer using strtol()
+	// Can also try using sscanf()
+
+	int x = 0;
+	int y = 0;
+	float z = 0;
+	ss >> x >> y >> z;
+	// Want to test if this worked!
+	if (ss.fail())
+	{
+		std::cout << "Failed to convert values!\n";
+	}
+	else
+	{
+		float sum = x + y + z;
+		std::cout << "Sum is: " << sum << std::endl;
+	}
+}
+
+void write_an_integer(int* x)
+{
+	// 73 seems like a good number to write!
+	*x = 73;
+}
+
+void use_strtol(std::string line)
+{
+	const char* beg = line.c_str();
+	char* end;
+	int value = strtol(beg, &end, 10);
+	if (end == beg)
+	{
+		std::cout << "Failed to convert!\n";
+	}
+	std::cout << "read " << value << std::endl;
+	value = strtol(end, &end, 10);
+	std::cout << "read " << value << std::endl;
+}
+
+/*
+char all_the_memory[2 ^ 64];
+int int_pos; // max value is 2 ^ 32
+size_t pos;  // max value is 2 ^ 32 on 32-bit, 2^64 on 64-bit
+all_the_memory[pos] // pos is always big enough to reach the last
+all_the_memory[int_pos] // not necessarily true for ints
+*/
+
 int main()
 {
-	std::cout << "Hello, world!\n";
-
 	std::fstream my_file("test.txt");
 	// for (int i = 0; i < n; i++)
 	std::string line1;
@@ -72,15 +122,17 @@ int main()
 	std::getline(my_file, line1);
 	std::getline(my_file, line2);
 	std::getline(my_file, line_with_nums);
-	std::stringstream ss(line_with_nums);
-	// Prefer using strtol()
-	// Can also try using sscanf()
-	int x = 0;
-	int y = 0;
-	float z = 0;
-	ss >> x >> y >> z;
-	// Want to test if this worked!
-	float sum = x + y + z;
-	std::cout << "Sum is: " << sum << std::endl;
 	std::cout << line_with_nums << std::endl;
+
+	int x, y, z;
+
+	int num_converted = sscanf(line_with_nums.c_str(), "j k l %d %d %d", &x, &y, &z);
+	if (num_converted != 3)
+	{
+		std::cout << "Failed to convert " << 3 - num_converted << " items!\n";
+	}
+	else
+	{
+		std::cout << x << " " << y << " " << z << std::endl;
+	}
 }
