@@ -1,138 +1,139 @@
-// Quick refresher on reading from files,
-// using streams, and using strings.
-
-#define _CRT_SECURE_NO_WARNINGS
-
-#include <fstream>
-#include <string>
-#include <sstream>
 #include <iostream>
+#include <iomanip>
+#include <fstream>
 
-void write_to_file()
+namespace BinFiles
 {
-	// Can pass flags as second argument, such as:
-	//    std::ios_base::in -> read-only
-	//	  std::ios_base::out -> write-only
-	//    std::ios_base::trunc -> Open file and destroy existing contents
-	//    std::ios_base::app -> Open file and append to existing contents
-	//    ....
-	std::ofstream my_file("test.txt");
-	my_file << "Hello, I'm a file!\n";
-	my_file << "Here are some numbers:\n";
-	my_file << 12 << " " << 42 << " " << 273.4f << std::endl;
-}
 
-void read_words()
-{
-	std::ifstream my_file("test.txt");
-	std::string word1;
-	std::string word2;
-	// This reads a single "word" from the file, not a line!
-	my_file >> word1 >> word2;
-	std::cout << word1 << word2 << std::endl;
-}
-
-void read_line()
-{
-	std::ifstream my_file("test.txt");
-	std::string line1;
-	// Reads one line from my_file into line1
-	// Consumes '\n' from "my_file", but does not put it
-	//    in line1.
-	std::getline(my_file, line1);
-	std::cout << line1 << std::endl;
-	if (line1.back() == '\n')
+	union IntConverter
 	{
-		std::cout << "getline() adds \\n to string\n";
-	}
-	else
+		int as_int;
+		unsigned char as_bytes[sizeof(int)];
+	};
+
+
+	struct Weapon
 	{
-		std::cout << "getline() skips the endline character\n";
-	}
-}
+		int current_ammo;
+		int max_ammo;
+		unsigned char name[10];
+		bool is_melee;
+	};
 
-void read_whole_file()
-{
-	std::fstream my_file("test.txt");
-	// for (int i = 0; i < n; i++)
-	for (std::string line; std::getline(my_file, line); )
+	union WeaponConverter
 	{
-		std::cout << line << std::endl;
-	}
-	std::cout << "Finished reading file.\n";
-}
+		Weapon as_weapon;
+		char as_bytes[sizeof(Weapon)];
+	};
 
-void conversion_with_sstream(const std::string& str)
-{
-	std::stringstream ss(str);
-	// Prefer using strtol()
-	// Can also try using sscanf()
-
-	int x = 0;
-	int y = 0;
-	float z = 0;
-	ss >> x >> y >> z;
-	// Want to test if this worked!
-	if (ss.fail())
+	std::ostream& operator<<(std::ostream& stream, IntConverter item)
 	{
-		std::cout << "Failed to convert values!\n";
+		stream << "Dec: " << item.as_int << std::endl;
+		stream << "Hex: 0x" << std::setfill('0') << std::setw(8) << std::hex << std::right << item.as_int << std::endl;
+		stream << "Bytes: ";
+
+		for (int i = 0; i < sizeof(int); i++)
+		{
+			stream << "0x" << std::setfill('0') << std::setw(2) << +item.as_bytes[i] << " ";
+		}
+
+		return stream;
 	}
-	else
+
+	std::ostream& operator<<(std::ostream& stream, WeaponConverter item)
 	{
-		float sum = x + y + z;
-		std::cout << "Sum is: " << sum << std::endl;
+		// stream << "Dec: " << item.as_int << std::endl;
+		// stream << "Hex: 0x" << std::setfill('0') << std::setw(8) << std::hex << std::right << item.as_int << std::endl;
+		stream << "Bytes: ";
+
+		for (int i = 0; i < sizeof(WeaponConverter); i++)
+		{
+			stream << "0x" << std::setfill('0') << std::setw(2) << +item.as_bytes[i] << " ";
+		}
+
+		return stream;
 	}
-}
 
-void write_an_integer(int* x)
-{
-	// 73 seems like a good number to write!
-	*x = 73;
-}
-
-void use_strtol(std::string line)
-{
-	const char* beg = line.c_str();
-	char* end;
-	int value = strtol(beg, &end, 10);
-	if (end == beg)
+	std::ostream& print_bytes(std::ostream& stream, char* value, size_t len)
 	{
-		std::cout << "Failed to convert!\n";
-	}
-	std::cout << "read " << value << std::endl;
-	value = strtol(end, &end, 10);
-	std::cout << "read " << value << std::endl;
-}
+		for (int i = 0; i < len; i++)
+		{
+			std::cout << "0x" << std::setfill('0') << std::setw(2) << +(unsigned char)value[i] << " ";
+		}
+		std::cout << std::endl;
 
-/*
-char all_the_memory[2 ^ 64];
-int int_pos; // max value is 2 ^ 32
-size_t pos;  // max value is 2 ^ 32 on 32-bit, 2^64 on 64-bit
-all_the_memory[pos] // pos is always big enough to reach the last
-all_the_memory[int_pos] // not necessarily true for ints
-*/
+		return stream;
+	}
+
+	void size_examples()
+	{
+
+		int int_array[128];
+
+		std::cout << "sizeof(int): " << sizeof(int) << std::endl;
+		std::cout << "sizeof(float): " << sizeof(float) << std::endl;
+		std::cout << "sizeof(double): " << sizeof(double) << std::endl;
+		std::cout << "sizeof(char): " << sizeof(char) << std::endl;
+		std::cout << "sizeof(unsigned int): " << sizeof(unsigned int) << std::endl;
+		std::cout << "sizeof(long long unsigned int): " << sizeof(long long unsigned int) << std::endl;
+		std::cout << "sizeof(int_array): " << sizeof(int_array) << std::endl;
+
+		std::cout << "sizeof(Weapon): " << sizeof(Weapon) << std::endl;
+
+		// Using unions
+		IntConverter converter;
+		converter.as_int = 312;
+
+		std::cout << "&converter.as_int:   " << &converter.as_int << std::endl;
+		std::cout << "&converter.as_bytes: " << &converter.as_bytes << std::endl;
+
+		std::cout << "sizeof(converter.as_int):   " << sizeof(converter.as_int) << std::endl;
+		std::cout << "sizeof(converter.as_bytes): " << sizeof(converter.as_bytes) << std::endl;
+
+		std::cout << converter << std::endl;
+		converter.as_int = 44213;
+		std::cout << converter << std::endl;
+
+		WeaponConverter weapon;
+		weapon.as_weapon = { 20, 50, "Gunnnnn", true };
+
+		std::cout << weapon << std::endl;
+	}
+
+	void write_to_file()
+	{
+		std::ofstream binary_file("file1.bin");
+
+		int* p;
+		//  ^^^ <- not actually the important part
+
+		int* pp;
+		//     ^ <- this means "A Pointer"
+
+			// Facts about pointers:
+			//    - All pointers are the same size.
+
+		std::cout << "sizeof(int*):  " << sizeof(int*) << std::endl;
+		std::cout << "sizeof(char*): " << sizeof(char*) << std::endl;
+
+		// ofstream::write(const char* str, int count)
+		// Writes `count` bytes from string `str` to the file.
+
+		int to_write = 102;
+		binary_file.write((char*)&to_write, sizeof(to_write));
+
+	}
+};
+
+using namespace BinFiles;
 
 int main()
 {
-	std::fstream my_file("test.txt");
-	// for (int i = 0; i < n; i++)
-	std::string line1;
-	std::string line2;
-	std::string line_with_nums;
-	std::getline(my_file, line1);
-	std::getline(my_file, line2);
-	std::getline(my_file, line_with_nums);
-	std::cout << line_with_nums << std::endl;
+	std::ifstream binary_file("file1.bin");
 
-	int x, y, z;
-
-	int num_converted = sscanf(line_with_nums.c_str(), "j k l %d %d %d", &x, &y, &z);
-	if (num_converted != 3)
-	{
-		std::cout << "Failed to convert " << 3 - num_converted << " items!\n";
-	}
-	else
-	{
-		std::cout << x << " " << y << " " << z << std::endl;
-	}
+	// ifstream::read(char* str, int count)
+	// Reads `count` bytes from the file and copies them to `str`.
+	int int_to_read;
+	binary_file.read((char*) &int_to_read, sizeof(int_to_read));
+	std::cout << int_to_read << std::endl;
 }
