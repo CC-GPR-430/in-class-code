@@ -1,184 +1,124 @@
-#define _CRT_SECURE_NO_WARNINGS
-
-#include <fstream>
-#include <sstream>
-#include <string>
 #include <iostream>
-#include <vector>
+#include <iomanip>
+#include <fstream>
 
-// Source: https://stackoverflow.com/a/46931770
-std::vector<std::string> split(const std::string& s, char delim) {
-	std::vector<std::string> result;
-	std::stringstream ss(s);
-	std::string item;
 
-	while (getline(ss, item, delim)) {
-		result.push_back(item);
-	}
+////// String parsing takes a string like this:
+////// "1234"
+////// And turns it into the "number" or int:
+////// 1234
 
-	return result;
-}
+// Binary representation of 1234:
+// 010011010010
+// String representation of "1234":
+// [ '1'  ][ '2' ][ '3' ][ '4' ]0
+//                              ^ Actual number 0 -- end of string.
 
-void write_to_file()
+namespace binary_files
 {
-	// Open an existing file
-	// Can optionally add bitwise OR'd together flags
-	//    as second parameter when opening a file
-	//    to specify opening behavior
-	// Example:
-	//    std::ios_base::in -> open file to be read
-	//    std::ios_base::out -> open file to be written to
-	//    std::ios_base::in | std::ios_base::out
-	//                       -> open file to be read from or written to (default)
-	//    std::ios_base::trunc -> "truncate" -- open file and destroy
-	//							  existing contents
-	//    std::ios_base::app -> "append" -- open file and begin writing
-	//								to end
-	//    Documentation here:
-	//		https://en.cppreference.com/w/cpp/io/basic_fstream/basic_fstream
-	std::fstream my_file("test.txt", std::ios_base::in | std::ios_base::out);
-	my_file << "This is a line in a file\n";
-	my_file << "Here are some numbers:\n";
-	my_file << 36 << " " << 42 << " " << 274.3f << std::endl;
-}
+    union IntConverter
+    {
+        int as_int;
+        unsigned char as_bytes[sizeof(int)];
+    };
 
-void read_word_from_file()
-{
-	std::fstream my_file("test.txt");
-	std::string line1;
+    std::ostream& operator<<(std::ostream& stream, IntConverter item)
+    {
+        stream << "Dec: " << item.as_int << std::endl;
+        stream << "Hex: 0x" << std::setfill('0') << std::setw(8) << std::hex << std::right << item.as_int << std::endl;
+        stream << "Bytes: ";
 
-	// stream extraction into string reads
-	// just the first "word"
-	my_file >> line1;
-	std::cout << line1 << std::endl;
-}
+        for (int i = 0; i < sizeof(int); i++)
+        {
+            stream << "0x" << std::setfill('0') << std::setw(2) << +item.as_bytes[i] << " ";
+        }
 
-void read_line_from_file()
-{
+        stream << std::dec;
 
-	std::fstream my_file("test.txt");
-	std::string line1;
-	std::string line2;
+        return stream;
+    }
 
-	std::getline(my_file, line1);
-	std::getline(my_file, line2);
-	std::cout << line1 << std::endl;
-	std::cout << line2 << std::endl;
-	if (line1.back() == '\n')
-	{
-		std::cout << "line1 ends in a newline\n";
-	}
-	else
-	{
-		std::cout << "line1 does not contain a newline\n";
-	}
-}
+    std::ostream& print_bytes(std::ostream& stream, const char* value, size_t len)
+    {
+        for (int i = 0; i < len; i++)
+        {
+            stream << "0x" << std::hex << std::setfill('0') << std::setw(2) << +(unsigned char)value[i] << " ";
+        }
+        stream << std::dec << std::endl;
 
-void read_whole_file()
-{
-	std::fstream my_file("test.txt");
+        return stream;
+    }
 
-	// for (int i = 0; i < n; i++)
-	// while (true)
-	for (std::string line; std::getline(my_file, line); )
-	{
-		std::cout << line << std::endl;
-	}
-}
+    void memory_example()
+    {
 
-void read_whole_file_into_words()
-{
-	std::fstream my_file("test.txt");
+        const char message[] = "Hello world!";
+        std::cout << message << std::endl;
 
-	// getline() can split on any delimiter, not just '\n'.
-	for (std::string line; std::getline(my_file, line, ' '); )
-	{
-		std::cout << line << std::endl;
-	}
-}
+        print_bytes(std::cout, message, sizeof(message));
 
-void read_whole_file_and_split_each_line()
-{
-	std::fstream my_file("test.txt");
+        std::cout << "sizeof(int): " << sizeof(int) << std::endl;
+        std::cout << "sizeof(float): " << sizeof(float) << std::endl;
+        std::cout << "sizeof(double): " << sizeof(double) << std::endl;
+        std::cout << "sizeof(char): " << sizeof(char) << std::endl;
+        std::cout << "sizeof(bool): " << sizeof(bool) << std::endl;
+        std::cout << "sizeof(unsigned int): " << sizeof(unsigned int) << std::endl;
+        std::cout << "sizeof(short): " << sizeof(short) << std::endl;
+        std::cout << "sizeof(int*): " << sizeof(int*) << std::endl;
+        std::cout << "sizeof(double*): " << sizeof(double*) << std::endl;
+        std::cout << "sizeof(char*): " << sizeof(char*) << std::endl;
 
-	for (std::string line; std::getline(my_file, line); )
-	{
-		std::cout << line << std::endl;
-		std::vector<std::string> items = split(line, ' ');
-		std::cout << "This line has " << items.size() << " words\n";
-	}
-}
+        int* p;
+    //  ^^^  <- NOT THE IMPORTANT PART
 
-void parse_string_with_sstream(const std::string& str)
-{
+        int* pp;
+    //     ^ <- This is a POINTER.... (to an int... (probably))
 
-	std::stringstream ss(str);
+        void* vp;
+        //      ^ Still a pointer! This is fine!
 
-	// Alternatively, can use
-	// strtol() or sscanf()
-	int x = 0;
-	int y = 0;
-	float z = 0;
-	ss >> x >> y >> z;
-	if (ss.fail())
-	{
-		std::cout << "Error parsing file\n";
-	}
+            // Memory is basically this: char all_mem[2^32]
+            // The least data we need to be able to index
+            //    the last char in this array is 32 bits -- 4 bytes.
+            // So, we could use an unsigned int and it could access every byte.
+            // On a 64-bit system, memory is this: char all_mem[2^64]
+            // We need a 64-bit number to access each address in this array.
+            // So, we need an 8 byte integer.
 
-	std::cout << "Sum: " << x + y + z << std::endl;
-}
+            // So, on 32-bit systems, pointers are 4 bytes, and on 64-bit
+            // systems, pointers are 8 bytes.
 
-void write_int(int* a)
-{
-	*a = 43;
-}
+        IntConverter converter;
+        converter.as_int = 31273;
+        std::cout << converter << std::endl;
 
-void parse_with_strtol(const std::string& str)
-{
-	const char* beg = str.c_str();
-	char* end;
-	int x = strtol(beg, &end, 10);
-	if (x == 0 && beg == end)
-	{
-		std::cout << "Failed to parse.\n";
-	}
-	std::cout << x << std::endl;
+        const char number[] = "31273";
+        print_bytes(std::cout, number, sizeof(number));
+    }
 
-	int y = strtol(end, &end, 10);
-	std::cout << y << std::endl;
-}
+    void write_to_file()
+    {
+        std::ofstream file("file1.bin");
+
+        // ofstream::write(const char* str, int count)
+        // Writes `count` bytes from `str` to the file.
+
+        int num_to_write = 31273;
+        file.write((char*)&num_to_write, sizeof(num_to_write));
+    }
+};
+
+using namespace binary_files;
 
 int main()
 {
-	/*
-	int x = 0;
-	write_int(&x);
-	std::cout << x;
+    memory_example();
+    return 0;
+    std::ifstream file("file1.bin");
 
-	return 0;
-	*/
-
-	std::fstream my_file("test.txt");
-	
-	std::string line1;
-	std::string line2;
-	std::string line_with_numbers;
-	std::getline(my_file, line1);
-	std::getline(my_file, line2);
-	std::getline(my_file, line_with_numbers);
-	std::cout << line_with_numbers << std::endl;
-
-	int x, y;
-	float z;
-
-	int num_conversions = sscanf(line_with_numbers.c_str(), "j k l %d %d %f", &x, &y, &z);
-	if (num_conversions != 3)
-	{
-		std::cout << "Failed to convert " << 3 - num_conversions << " values!\n";
-	}
-	else
-	{
-		std::cout << x << " " << y << " " << z << std::endl;
-	}
-
+    // ifstream::read(char* str, int count)
+    // Reads `count` bytes from the file and copies them to `str`.
+    int num_to_read = 0;
+    file.read((char*)&num_to_read, sizeof(num_to_read));
+    std::cout << "Read " << num_to_read << std::endl;
 }
