@@ -54,13 +54,14 @@ namespace BinFiles
 		return stream;
 	}
 
-	std::ostream& print_bytes(std::ostream& stream, char* value, size_t len)
+
+	std::ostream& print_bytes(std::ostream& stream, const char* value, size_t len)
 	{
 		for (int i = 0; i < len; i++)
 		{
-			std::cout << "0x" << std::setfill('0') << std::setw(2) << +(unsigned char)value[i] << " ";
+			stream << "0x" << std::hex << std::setfill('0') << std::setw(2) << +(unsigned char)value[i] << " ";
 		}
-		std::cout << std::endl;
+		stream << std::dec << std::endl;
 
 		return stream;
 	}
@@ -104,10 +105,10 @@ namespace BinFiles
 	{
 		std::ofstream binary_file("file1.bin");
 
-		int* p;
+		//  int* p;
 		//  ^^^ <- not actually the important part
 
-		int* pp;
+		//  int* pp;
 		//     ^ <- this means "A Pointer"
 
 			// Facts about pointers:
@@ -123,17 +124,97 @@ namespace BinFiles
 		binary_file.write((char*)&to_write, sizeof(to_write));
 
 	}
+
+	void str_and_int_comparison_example()
+	{
+
+		const char msg[] = "Hello, world!";
+		std::cout << msg << std::endl;
+		print_bytes(std::cout, msg, sizeof(msg));
+
+		const char number[] = "1357243";
+		int number_as_int = 1357243;
+		std::cout << number << std::endl;
+		std::cout << "ASCII bytes: ";
+		print_bytes(std::cout, number, sizeof(number));
+		std::cout << "int bytes:   ";
+		print_bytes(std::cout, (char*)&number_as_int, sizeof(number_as_int));
+	}
+
+	void read_one_int()
+	{
+		std::ifstream binary_file("file1.bin");
+
+		// ifstream::read(char* str, int count)
+		// Reads `count` bytes from the file and copies them to `str`.
+		int int_to_read;
+		binary_file.read((char*)&int_to_read, sizeof(int_to_read));
+		std::cout << int_to_read << std::endl;
+	}
+
+	void string_constructor_examples()
+	{
+		char msg[] = "Hello, world!";
+
+		// ONLY WORKS IF `msg` IS ALREADY NULL-TERMINATED
+		std::string str(msg);
+
+		// Makes a string out of 7 bytes of msg
+		std::string str_2(msg, 7);
+
+		// ... Uh oh... This copies more bytes from
+		// `msg` than exist in `msg`! It's a buffer
+		// overflow!
+		std::string str_3(msg, 300);
+
+		std::cout << str << std::endl;
+		std::cout << str_2 << std::endl;
+		// Uncomment this to see what a buffer overflow
+		// looks like (assuming it doesn't crash your
+		// system!
+		//std::cout << str_3 << std::endl;
+
+		// Advanced C++!
+		// Can make a string, resize it, and then
+		// access the (resized) buffer, copying bytes
+		// into that.
+		std::string my_string;
+		my_string.resize(sizeof(msg));
+		memcpy((char*)my_string.data(), &msg, my_string.size());
+		std::cout << my_string << std::endl;
+
+	}
+
+	void array_example()
+	{
+		char msg[] = "Hello, world!";
+
+		std::cout << "sizeof(msg):  " << sizeof(msg) << std::endl;
+		std::cout << "sizeof(*msg): " << sizeof(*msg) << std::endl;
+		std::cout << "msg has " << sizeof(msg) / sizeof(*msg) << " elements" << std::endl;
+
+		int nums[] = { 20, -3, 45, -700 };
+		std::cout << "sizeof(nums):  " << sizeof(nums) << std::endl;
+		std::cout << "sizeof(*nums): " << sizeof(*nums) << std::endl;
+		std::cout << "nums has " << sizeof(nums) / sizeof(*nums) << " elements" << std::endl;
+
+		// Printing the bytes of the array...
+		print_bytes(std::cout, (char*)&nums, sizeof(nums));
+		for (int n : nums)
+		{
+			// ... gives the same thing as printing the bytes of each element of the array.
+			print_bytes(std::cout, (char*)&n, sizeof(n));
+		}
+
+		// This is very relevant for implement read_n()!
+
+		print_bytes(std::cout, (char*)&nums, sizeof(*nums) * 2);
+	}
 };
 
 using namespace BinFiles;
 
 int main()
 {
-	std::ifstream binary_file("file1.bin");
-
-	// ifstream::read(char* str, int count)
-	// Reads `count` bytes from the file and copies them to `str`.
-	int int_to_read;
-	binary_file.read((char*) &int_to_read, sizeof(int_to_read));
-	std::cout << int_to_read << std::endl;
+	return 0;
 }
