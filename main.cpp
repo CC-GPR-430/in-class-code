@@ -75,7 +75,7 @@ namespace binary_files
     //     ^ <- This is a POINTER.... (to an int... (probably))
 
         void* vp;
-        //      ^ Still a pointer! This is fine!
+    //      ^ Still a pointer! This is fine!
 
             // Memory is basically this: char all_mem[2^32]
             // The least data we need to be able to index
@@ -106,19 +106,44 @@ namespace binary_files
         int num_to_write = 31273;
         file.write((char*)&num_to_write, sizeof(num_to_write));
     }
+
+    void read_from_file()
+    {
+        std::ifstream file("file1.bin");
+
+        // ifstream::read(char* str, int count)
+        // Reads `count` bytes from the file and copies them to `str`.
+        int num_to_read = 0;
+        file.read((char*)&num_to_read, sizeof(num_to_read));
+        std::cout << "Read " << num_to_read << std::endl;
+    }
 };
 
 using namespace binary_files;
 
 int main()
 {
-    memory_example();
-    return 0;
-    std::ifstream file("file1.bin");
+    char msg[] = "Hello, world!";
+    print_bytes(std::cout, msg, sizeof(msg));
 
-    // ifstream::read(char* str, int count)
-    // Reads `count` bytes from the file and copies them to `str`.
-    int num_to_read = 0;
-    file.read((char*)&num_to_read, sizeof(num_to_read));
-    std::cout << "Read " << num_to_read << std::endl;
+    std::cout << "sizeof(msg):  " << sizeof(msg) << std::endl;
+    std::cout << "sizeof(*msg): " << sizeof(*msg) << std::endl;
+    std::cout << "msg has " << sizeof(msg) / sizeof(*msg) << " elements\n";
+
+    int int_array[] = { 45, -73, 200, 59 };
+    std::cout << "sizeof(int_array):  " << sizeof(int_array) << std::endl;
+    std::cout << "sizeof(*int_array): " << sizeof(*int_array) << std::endl;
+    std::cout << "int_array has " << sizeof(int_array) / sizeof(*int_array) << " elements\n";
+
+    // print the whole array
+    print_bytes(std::cout, (char*)int_array, sizeof(int_array));
+
+    // print each element of the array
+    for (int i : int_array)
+    {
+        print_bytes(std::cout, (char*)&i, sizeof(i));
+    }
+
+    // print the first two elements of the array
+    print_bytes(std::cout, (char*)int_array, sizeof(*int_array) * 2);
 }
