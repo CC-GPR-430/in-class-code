@@ -117,33 +117,71 @@ namespace binary_files
         file.read((char*)&num_to_read, sizeof(num_to_read));
         std::cout << "Read " << num_to_read << std::endl;
     }
+
+    void something()
+    {
+
+
+
+        char msg[] = "Hello, world!";
+        print_bytes(std::cout, msg, sizeof(msg));
+
+        std::cout << "sizeof(msg):  " << sizeof(msg) << std::endl;
+        std::cout << "sizeof(*msg): " << sizeof(*msg) << std::endl;
+        std::cout << "msg has " << sizeof(msg) / sizeof(*msg) << " elements\n";
+
+        int int_array[] = { 45, -73, 200, 59 };
+        std::cout << "sizeof(int_array):  " << sizeof(int_array) << std::endl;
+        std::cout << "sizeof(*int_array): " << sizeof(*int_array) << std::endl;
+        std::cout << "int_array has " << sizeof(int_array) / sizeof(*int_array) << " elements\n";
+
+        // print the whole array
+        print_bytes(std::cout, (char*)int_array, sizeof(int_array));
+
+        // print each element of the array
+        for (int i : int_array)
+        {
+            print_bytes(std::cout, (char*)&i, sizeof(i));
+        }
+
+        // print the first two elements of the array
+        print_bytes(std::cout, (char*)int_array, sizeof(*int_array) * 2);
+    }
 };
 
 using namespace binary_files;
 
 int main()
 {
+    // string constructors
+    // Have a null-terminated string
     char msg[] = "Hello, world!";
-    print_bytes(std::cout, msg, sizeof(msg));
 
-    std::cout << "sizeof(msg):  " << sizeof(msg) << std::endl;
-    std::cout << "sizeof(*msg): " << sizeof(*msg) << std::endl;
-    std::cout << "msg has " << sizeof(msg) / sizeof(*msg) << " elements\n";
+    // Want to make a string out of that:
+    std::string str1(msg);
+    std::cout << str1.size() << std::endl;
+    std::cout << str1 << std::endl;
 
-    int int_array[] = { 45, -73, 200, 59 };
-    std::cout << "sizeof(int_array):  " << sizeof(int_array) << std::endl;
-    std::cout << "sizeof(*int_array): " << sizeof(*int_array) << std::endl;
-    std::cout << "int_array has " << sizeof(int_array) / sizeof(*int_array) << " elements\n";
+    // Can also make a string out of X bytes
+    // of the given array.
+    // This is useful when you have an array
+    // of bytes that is NOT NULL TERMINATED.
+    std::string str2(msg, 7);
 
-    // print the whole array
-    print_bytes(std::cout, (char*)int_array, sizeof(int_array));
+    std::cout << str2.size() << std::endl;
+    std::cout << str2 << std::endl;
 
-    // print each element of the array
-    for (int i : int_array)
-    {
-        print_bytes(std::cout, (char*)&i, sizeof(i));
-    }
+    // Watch out for buffer overflows!
+    // std::string str3(msg, 200);
 
-    // print the first two elements of the array
-    print_bytes(std::cout, (char*)int_array, sizeof(*int_array) * 2);
+    // std::cout << str3.size() << std::endl;
+    // std::cout << str3 << std::endl;
+
+    // Advanced method -- don't use a constructor
+    std::string str4;
+    str4.resize(sizeof(msg));
+    // str4.data() is the pointer to the internal buffer
+    // of the string.
+    memcpy((void*)str4.data(), msg, str4.size());
+    std::cout << str4 << std::endl;
 }
