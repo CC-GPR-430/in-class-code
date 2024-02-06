@@ -1,0 +1,8 @@
+*~
+/main
+*.dSYM
+/.vs/
+/build/
+/out/
+/.DS_Store
+/.cache/
