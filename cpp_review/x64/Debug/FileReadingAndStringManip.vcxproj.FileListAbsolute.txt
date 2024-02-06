@@ -1,0 +1,2 @@
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\x64\Debug\FileReadingAndStringManip.exe
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\cpp_review\x64\Debug\FileReadingAndStringManip.exe

@@ -1,0 +1,11 @@
+﻿  allocators.cpp
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\cpp_review\allocators.cpp(58,56): warning C4290: C++ exception specification ignored except to indicate a function is not __declspec(nothrow)
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\cpp_review\allocators.cpp(59,1): warning C5043: 'operator new': exception specification does not match previous declaration
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\cpp_review\predefined C++ types (compiler internal)(33,23): message : see declaration of 'operator new'
+  files_and_strings.cpp
+  main.cpp
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\cpp_review\main.cpp(74,14): warning C4101: 'pp': unreferenced local variable
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\cpp_review\main.cpp(77,15): warning C4101: 'vp': unreferenced local variable
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\cpp_review\main.cpp(71,14): warning C4101: 'p': unreferenced local variable
+  Generating Code...
+  FileReadingAndStringManip.vcxproj -> C:\Users\sbarrett\source\repos\FileReadingAndStringManip\cpp_review\x64\Debug\FileReadingAndStringManip.exe

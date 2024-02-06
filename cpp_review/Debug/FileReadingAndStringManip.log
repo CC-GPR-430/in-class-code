@@ -1,0 +1,6 @@
+﻿  main.cpp
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\main.cpp(27,27): warning C4018: '<': signed/unsigned mismatch
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\main.cpp(60,10): warning C4101: 'pp': unreferenced local variable
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\main.cpp(63,11): warning C4101: 'vp': unreferenced local variable
+C:\Users\sbarrett\source\repos\FileReadingAndStringManip\main.cpp(57,10): warning C4101: 'p': unreferenced local variable
+  FileReadingAndStringManip.vcxproj -> C:\Users\sbarrett\source\repos\FileReadingAndStringManip\Debug\FileReadingAndStringManip.exe
