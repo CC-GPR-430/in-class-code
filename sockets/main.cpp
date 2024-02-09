@@ -91,8 +91,6 @@ int main(int argc, char *argv[])
 	// Set up socket library
 	SockLibInit();
 
-	std::cout << "argc: " << argc;
-
 	if (argc == 1) do_client();
 	else do_server();
 
