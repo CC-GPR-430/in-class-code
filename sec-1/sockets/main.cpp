@@ -1,100 +1,86 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <time.h>
 
 #include "socklib.h"
+#include "defer.h"
 
-void do_client()
-{
-	// Sockets : Network Card :: Files : Hardrive
+void do_client() {
 
-	// INET => IPv4 Network Protocol
-	// Stream => TCP Transport Protocol
-	Socket socket(Socket::Family::INET, Socket::Type::STREAM);
+	// Using UDP
 
-	// Created a socket, but it doesn't talk to anything yet.
+	// Step 1: Make a socket. Use DGRAM instead of STREAM to
+	// make a UDP socket instead of a TCP socket.
+	Socket udp_sock(Socket::Family::INET, Socket::Type::DGRAM);
 
-	// Created an address (this is google.com's IP address).
-	std::string str_address("127.0.0.1"); // <- Use IP address, not MAC address
-	Address address(str_address);
+	// That's it actually
+	// Now we can send and recv :)
 
-	// Connect the socket to the given address:
-	// Must also provide a port -- port 80 = web traffic
-	socket.Connect(address, 15000);
+	std::string msg_to_send("Hello, server! How are you?");
+	// Send to this computer, which "127.0.0.1" always refers to.
+	Address server_addr("127.0.0.1", 10245);
 
-	std::cout << "Connected to " << str_address << "!\n";
+	// SendTo() takes an extra parameter as compared to Send():
+	// the address to which the data should be sent.
+	// The same socket can send data to any address, unlike
+	// with TCP, where a socket is bound a single connection.
+	size_t nbytes_sent = udp_sock.SendTo(msg_to_send.data(),
+		msg_to_send.size(),
+		server_addr);
 
-	// Send data (this is the same interface as file.write())
-	std::string msg_to_send("Hi there, google!");
-	size_t nbytes_sent = socket.Send(msg_to_send.data(),
-		msg_to_send.size());
+	std::cout << "Sent " << nbytes_sent << " bytes to "
+		<< server_addr << "\n";
 
-	std::cout << "Sent " << nbytes_sent << " bytes to " << str_address << "\n";
-
-	// Let's see if google has anything to say back to us...
 	char buffer[4096];
+	Address msg_from;
 
-	// Recv() will _block_, meaning it waits until data comes
-	// in (just like std::cin does).
-	size_t nbytes_recved = socket.Recv(buffer, sizeof(buffer));
+	// RecvFrom returns the number of bytes received
+	// and creates a new address, which it stores in the
+	// last parameter. This address is the address from
+	// which the data arrived.
+	size_t nbytes_recvd = udp_sock.RecvFrom(buffer, sizeof(buffer), msg_from);
 
-	// Now, buffer has nbytes_recved written into it.
-	std::string msg_recved(buffer, nbytes_recved);
-
-	std::cout << str_address << " says '" << msg_recved << "'.\n";
+	std::cout << "Received " << nbytes_recvd << " bytes from " << msg_from
+		<< ": '";
+	std::cout.write(buffer, nbytes_recvd);
+	std::cout << "'\n";
 }
 
 void do_server()
 {
-	std::cout << "Running server.\n";
-	// Same as before -- make a socket
-	Socket listen_socket(Socket::Family::INET, Socket::Type::STREAM);
+	// As usual, make a socket
+	Socket udp_sock(Socket::Family::INET, Socket::Type::DGRAM);
 
-	// Only two options:
-	// 0.0.0.0 = accept connections from anywhere
-	// 127.0.0.1 = accept connections only from processes on this machine
-	Address srv_address("0.0.0.0");
+	// Now bind to a port so other devices know where to send their data.
+	// Recall that "0.0.0.0" => Receive connections/datagrams from anywhere
+	// and "127.0.0.1" => Only accept data from this machine (i.e., local
+	// processes).
+	Address my_address("0.0.0.0", 10245);
+	udp_sock.Bind(my_address);
 
-	// Could also do this on client, but why bother? We don't care about
-	// our port number except for the sake of telling other people how
-	// to connect to us.
-	listen_socket.Bind(srv_address, 15000);
-
-	// Opens up the port for connections
-	listen_socket.Listen();
-
-	// Ready for new connections! Use Accept()
-	// Accept() is like Recv() in that it blocks
-	// (i.e., waits for a new connection to come in)
-	// It's also a little unusual in that it returns
-	// a new socket!
-	Socket conn_socket = listen_socket.Accept();
-
-	// The rest is up to our Application layer protocol --
-	// Send() and Recv() as dictated by the protocol.
-
+	// Now we're ready to receive data!
 	char buffer[4096];
-	size_t nbytes_recvd = conn_socket.Recv(buffer, sizeof(buffer));
-	std::string cli_msg(buffer, nbytes_recvd);
+	Address from_address;
+	size_t nbytes_recvd = udp_sock.RecvFrom(buffer, sizeof(buffer), from_address);
+	std::cout << "Received " << nbytes_recvd << " bytes from " << from_address
+		<< ": '";
+	std::cout.write(buffer, nbytes_recvd);
+	std::cout << "'.\n";
 
-	std::cout << "Received message " << cli_msg << " from client.\n";
-
-	std::string msg_to_send("Hi yourself, client!");
-	size_t nbytes_sent = conn_socket.Send(msg_to_send.data(),
-		msg_to_send.size());
-
-	std::cout << "Sent " << nbytes_sent << " bytes to client.\n";
+	std::string msg_to_send("Hello! I'm so sad :)");
+	size_t nbytes_sent = udp_sock.SendTo(msg_to_send.data(), msg_to_send.size(), from_address);
+	std::cout << "Sent " << nbytes_sent << " bytes to " << from_address << ".\n";
 }
 
-int main(int argc, char *argv[])
-{
-	// Set up socket library
+int main(int argc, char *argv[]) {
 	SockLibInit();
+	defer _([]() {SockLibShutdown();});
 
+	// Run client if no args passed on command line;
+	// otherwise, run server.
 	if (argc == 1) do_client();
 	else do_server();
-
-	SockLibShutdown();
 
 	return 0;
 }

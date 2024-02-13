@@ -45,17 +45,22 @@ void SockLibShutdown() {
 
 union Win32Address {
   Address::AddressData generic_data;
-  IN_ADDR address;
+  SOCKADDR_IN address;
 };
 
-static IN_ADDR to_native_address(Address generic_address) {
+static SOCKADDR_IN to_native_address(Address generic_address) {
   Win32Address win32_address;
   win32_address.generic_data = generic_address._data;
   return win32_address.address;
 }
 
-Address::Address(const std::string &name) {
-  require(inet_pton(AF_INET, name.c_str(), &_data) == 1, "inet_pton");
+Address::Address(const std::string &name, int port) {
+  Win32Address win32_addr;
+  require(inet_pton(AF_INET, name.c_str(), &win32_addr.address.sin_addr) == 1, "inet_pton");
+  win32_addr.address.sin_port = htons(port);
+  win32_addr.address.sin_family = AF_INET;
+
+  memcpy(&_data, &win32_addr, sizeof(win32_addr));
 }
 
 union Win32Socket {
@@ -71,6 +76,29 @@ static SOCKET to_native_socket(const Socket &generic_socket) {
 
 void Socket::native_destroy(Socket &socket) {
   closesocket(to_native_socket(socket));
+}
+
+int Socket::SetNonBlockingMode(bool shouldBeNonBlocking) {
+  if (!_has_socket) {
+    throw std::runtime_error(std::string("Socket has not yet been created"));
+  }
+
+  SOCKET sock = to_native_socket(*this);
+  unsigned long value = shouldBeNonBlocking ? 1 : 0;
+  int result = ioctlsocket(sock, FIONBIO, &value);
+  require(result != SOCKET_ERROR, "ioctlsocket()");
+
+  return 0;
+}
+
+int Socket::SetTimeout(float seconds) {
+  DWORD value = (DWORD)(seconds * 1000);
+  int result = setsockopt(to_native_socket(*this),
+			  SOL_SOCKET, SO_RCVTIMEO,
+			  (const char*)&value, sizeof(value));
+  require(result == 0, "setsockopt()");
+
+  return 0;
 }
 
 void Socket::Create(Socket::Family family, Socket::Type type) {
@@ -94,6 +122,10 @@ void Socket::Create(Socket::Family family, Socket::Type type) {
     native_type = SOCK_STREAM;
     native_protocol = IPPROTO_TCP;
     break;
+  case DGRAM:
+    native_type = SOCK_DGRAM;
+    native_protocol = IPPROTO_UDP;
+    break;
   default:
     throw std::runtime_error("Not implemented");
   }
@@ -107,14 +139,10 @@ void Socket::Create(Socket::Family family, Socket::Type type) {
   _has_socket = true;
 }
 
-int Socket::Bind(const Address &address, int port) {
-  sockaddr_in service;
-  service.sin_family = AF_INET;
-  service.sin_port = htons(port);
-  service.sin_addr = to_native_address(address);
-
-  require(bind(to_native_socket(*this), (sockaddr *)&service,
-               sizeof(service)) != SOCKET_ERROR,
+int Socket::Bind(const Address &address) {
+  SOCKADDR_IN native_addr = to_native_address(address);
+  require(bind(to_native_socket(*this), (sockaddr *)&native_addr,
+               sizeof(native_addr)) != SOCKET_ERROR,
           "bind()");
 
   return 0;
@@ -138,24 +166,46 @@ Socket Socket::Accept() {
   return conn_sock;
 }
 
-int Socket::Connect(const Address &address, int port) {
-  sockaddr_in service;
-  service.sin_family = AF_INET;
-  service.sin_port = htons(port);
-  service.sin_addr = to_native_address(address);
+int Socket::Connect(const Address &address) {
+  SOCKADDR_IN native_addr = to_native_address(address);
 
-  require(connect(to_native_socket(*this), (sockaddr *)&service,
-                  sizeof(service)) != SOCKET_ERROR,
+  require(connect(to_native_socket(*this), (sockaddr *)&native_addr,
+                  sizeof(native_addr)) != SOCKET_ERROR,
           "connect()");
 
   return 0;
 }
 
-size_t Socket::Recv(char *buffer, size_t size) {
-  int len = recv(to_native_socket(*this), buffer, (int)size, 0);
+int Socket::Recv(char *buffer, int size) {
+  int len = recv(to_native_socket(*this), buffer, size, 0);
+  if (len == SOCKET_ERROR) {
+    if (WSAGetLastError() == WSAETIMEDOUT) {
+      _last_error = SOCKLIB_ETIMEDOUT;
+      return -1;
+    }
+  }
+  // Crash on all other errors
   require(len >= 0, "recv()");
 
-  return (size_t)len;
+  return len;
+}
+
+int Socket::RecvFrom(char* buffer, int size, Address& src) {
+  Win32Address native_addr;
+  int socklen = sizeof(native_addr.address);
+  int count = recvfrom(to_native_socket(*this), buffer, size, 0, (sockaddr*)&native_addr.address, &socklen);
+  if (count == SOCKET_ERROR) {
+    if (WSAGetLastError() == WSAETIMEDOUT) {
+      _last_error = SOCKLIB_ETIMEDOUT;
+      return -1;
+    }
+  }
+
+  // Crash on all other errors
+  require(count != SOCKET_ERROR, "recvfrom()");
+
+  src._data = native_addr.generic_data;
+  return count;
 }
 
 size_t Socket::Send(const char *data, size_t len) {
@@ -165,4 +215,22 @@ size_t Socket::Send(const char *data, size_t len) {
     throw std::runtime_error(std::string("send(): ") + strerror(errno));
   }
   return count;
+}
+
+size_t Socket::SendTo(const char* data, size_t len, const Address& dst) {
+  SOCKADDR_IN native_addr = to_native_address(dst);
+
+  int count = sendto(to_native_socket(*this), data, (int)len, 0, (sockaddr*)&native_addr, sizeof(native_addr));
+  require(count != SOCKET_ERROR, "sendto()");
+
+  return count;
+}
+
+std::ostream& operator<<(std::ostream& s, const Address& a) {
+  SOCKADDR_IN nat_addr = to_native_address(a);
+  s << inet_ntoa(nat_addr.sin_addr);
+  s << ":";
+  s << ntohs(nat_addr.sin_port);
+
+  return s;
 }
