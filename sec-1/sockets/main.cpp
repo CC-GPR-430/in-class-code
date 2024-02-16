@@ -2,6 +2,7 @@
 #include <sstream>
 #include <string>
 #include <time.h>
+#include <stdlib.h>
 
 #include "socklib.h"
 #include "defer.h"

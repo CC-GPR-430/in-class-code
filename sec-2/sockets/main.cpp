@@ -1,104 +1,129 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <time.h>
 
 #include "socklib.h"
+#include "defer.h"
 
-void do_client()
-{
-	// Files : Disk :: Socket : Network Card
+void do_client() {
+	const float max_timeout = 5.0f;
+	// Create a UDP client
 
-	// Step 1: Create a socket!
-	// INET => IPv4 Network Protocol
-	// STREAM => TCP Transport Protocol
-	Socket socket(Socket::Family::INET, Socket::Type::STREAM);
+	// Step 1: Create a socket. Use DGRAM to make
+	// a UDP socket, instead of STREAM (which we
+	// used to make TCP sockets)
+	Socket udp_sock(Socket::Family::INET, Socket::Type::DGRAM);
 
-	// Note that this socket is not connected to any address.
-	// This is like making a file stream like so:
-	//     std::fstream my_file;
+	// And... That's it! Now we can send and receive!
 
-	// Step 2: Specify an Address!
-	// std::string str_address("142.250.65.174");
-	std::string str_address("127.0.0.1");
-	Address address(str_address);
+	std::string msg_to_send("Hi there, server!");
 
-	// Step 3: Connect() the socket to the address
-	//			port 80 -> http requests
-	socket.Connect(address, 15000);
+	float wait_time = 1.0f;
+	udp_sock.SetTimeout(wait_time);
 
-	std::cout << "Connected to " << str_address << "!\n";
+	// Send data to 127.0.0.1, which always means
+	// "this machine."
+	Address srv_addr("127.0.0.1", 54345);
+	// Use sendto() instead of send() with UDP sockets.
+	// Must also provide desination address.
 
-	// Now you can send() and recv() according to your protocol!
-
-	// Send() has same interface as file.write()
-	std::string msg_to_send("Hello, google!");
-	size_t nbytes_sent = socket.Send(msg_to_send.data(), msg_to_send.size());
-	std::cout << "Sent " << nbytes_sent << " bytes.\n";
-
-	// Recv() has same interface as file.read()
-	// Note that Recv() will _block_, halting your program
-	// until data comes in (similar to std::cin).
+	int nbytes_recvd = -1;
 	char buffer[4096];
-	size_t nbytes_recvd = socket.Recv(buffer, sizeof(buffer));
+	Address from_addr;
+	while (nbytes_recvd == -1) {
+		size_t nbytes_sent = udp_sock.SendTo(
+			msg_to_send.data(), msg_to_send.size(),
+			srv_addr);
+		std::cout << "Sent " << nbytes_sent << " bytes to " << srv_addr
+			<< ".\n";
 
-	// Note that, like with read(), buffer is neither length-prefixed
-	// nor null-terminated -- it's NOT a string, it's just a chunk
-	// of bytes.
+		nbytes_recvd = udp_sock.RecvFrom(buffer,
+			sizeof(buffer), from_addr);
 
-	// We can make a string if we want, though:
-	std::string msg_recvd(buffer, nbytes_recvd);
+		if (nbytes_recvd == -1)
+		{
+			// RecvFrom failed! Need to check why.
+			if (udp_sock.GetLastError() == Socket::Error::SOCKLIB_ETIMEDOUT) {
+				std::cout << "Timed out after " << wait_time << " seconds.\n";
+				wait_time *= 2;
+				if (wait_time > max_timeout)
+				{
+					std::cout << "Gave up after " << wait_time << " seconds.\n";
+					return;
+				}
+				else
+				{
+					std::cout << "Retrying with wait_time = " << wait_time << "...\n";
+					udp_sock.SetTimeout(wait_time);
+				}
+			}
+			else
+			{
+				std::cout << "Unrecognized error.\n";
+				return;
+			}
+		}
+	}
 
-	std::cout << "Received message '" << msg_recvd << "'!\n";
+	// Always have to check RecvFrom's return value.
+	// -1 means something went wrong!
+
+	// Try "exponential backoff" -- retry if failed, doubling
+	// the wait time. Give up after some predetermined
+	// max_timeout threshold is reached.
+
+	std::string str_msg_recvd(buffer, nbytes_recvd);
+	std::cout << "Received " << nbytes_recvd << " from " << from_addr
+		<< ": '" << str_msg_recvd << "'.\n";
 }
 
-void do_server()
-{
-	// Create a socket!
-	Socket listen_sock(Socket::Family::INET, Socket::Type::STREAM);
+void do_server() {
+	// Again, make a socket:
+	Socket udp_sock(Socket::Family::INET, Socket::Type::DGRAM);
 
-	// Make an address we want to listen on. Only two options:
-	// 0.0.0.0 => Accept connections from anywhere
-	// 127.0.0.1 => Accept connections only from this machine
-	Address srv_address("0.0.0.0");
+	// For the sever, bind() so that others
+	// know what port to send data to.
 
-	// Bind to a port so that data sent to that port
-	// comes to this process
-	listen_sock.Bind(srv_address, 15000);
+	// Recall, "0.0.0.0" => Accept connections/datagrams
+	// from any address.
+	// "127.0.0.1" => Accept connections only from
+	// processes on this machine.
+	Address my_addr("0.0.0.0", 54345);
+	udp_sock.Bind(my_addr);
 
-	// Open this port up to incoming connections, so
-	// Connect() will work
-	listen_sock.Listen();
+	// No need to call Listen(), because we're not
+	// actually accepting connections -- just
+	// datagrams.
 
-	std::cout << "Waiting for connections...\n";
-	// Accept() will fail if you forget to call Listen()
-	// Accept() works like Recv() in that it waits for
-	// information to come in from another device.
-	// It's also unusual in that it returns a new socket,
-	// which represents the new connection.
-	Socket conn_sock = listen_sock.Accept();
+	// Server needs to stay alive for client's
+	// recvfrom() to not exit with an error.
+	while (true) {
+		char buffer[4096];
+		Address from_addr;
+		int nbytes_recvd = udp_sock.RecvFrom(buffer, sizeof(buffer),
+			from_addr);
+		std::string str_msg_recvd(buffer, nbytes_recvd);
+		std::cout << "Received " << nbytes_recvd << " bytes from "
+			<< from_addr << ": '" << str_msg_recvd << "'.\n";
+	}
 
-	std::cout << "Connection received!\n";
-
-	// Now we can Send/Recv freely on conn_sock, and can accept
-	// new connections using listen_sock if we want!
-
-	char buffer[4096];
-	size_t nbytes_received = conn_sock.Recv(buffer, sizeof(buffer));
-	std::string cli_msg(buffer, nbytes_received);
-	std::cout << "Received message '" << cli_msg << "' from client!\n";
-
-	std::string srv_msg("Nice message");
-	conn_sock.Send(srv_msg.data(), srv_msg.size());
+	std::string msg_to_client("Hello there, General Kenobi!");
+	/*size_t nbytes_sent = udp_sock.SendTo(
+		msg_to_client.data(), msg_to_client.size(),
+		from_addr);
+	std::cout << "Sent " << nbytes_sent << " bytes.\n"; */
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	SockLibInit();
-	
+	defer _([]() {SockLibShutdown();});
+
+	// If we don't receive any command line
+	// arguments, run the client; otherwise,
+	// run the server.
 	if (argc == 1) do_client();
 	else do_server();
-
-	SockLibShutdown();
 
 	return 0;
 }
