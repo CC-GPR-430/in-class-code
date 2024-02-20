@@ -7,151 +7,97 @@
 #include "socklib.h"
 #include "defer.h"
 
-void do_client() {
-
-	// Using UDP
-
-	// Step 1: Make a socket. Use DGRAM instead of STREAM to
-	// make a UDP socket instead of a TCP socket.
-	Socket udp_sock(Socket::Family::INET, Socket::Type::DGRAM);
-	float wait_time = 2.0f;
-	// udp_sock.SetTimeout(wait_time);
-
-	// That's it actually
-	// Now we can send and recv :)
-
-	std::string msg_to_send("Hello, server! How are you?");
-	// Send to this computer, which "127.0.0.1" always refers to.
-	Address server_addr("127.0.0.1", 10245);
-
-
+// Returns true if loop should continue -- returns false
+// if other end hung up.
+bool srv_handle_connection(Socket& conn_sock)
+{
 	char buffer[4096];
-	Address msg_from;
+	int nbytes_recvd = conn_sock.Recv(buffer, sizeof(buffer));
 
-	// RecvFrom returns the number of bytes received
-	// and creates a new address, which it stores in the
-	// last parameter. This address is the address from
-	// which the data arrived.
-	const float max_wait_time = 5.0f;
-	int nbytes_recvd = -1;
-	// while (wait_time < max_wait_time && nbytes_recvd == -1)
+	// Must ALWAYS check for errors!
+	// nbytes_recvd == -1 iff an error occurred
+	if (nbytes_recvd == -1)
 	{
-		// SendTo() takes an extra parameter as compared to Send():
-		// the address to which the data should be sent.
-		// The same socket can send data to any address, unlike
-		// with TCP, where a socket is bound a single connection.
-		size_t nbytes_sent = udp_sock.SendTo(msg_to_send.data(),
-			msg_to_send.size(),
-			server_addr);
-
-		std::cout << "Sent " << nbytes_sent << " bytes to "
-			<< server_addr << "\n";
-
-
-		// Problem: RecvFrom() receives data from *anyone* -- but
-		// we only want data that the server sent back! How can
-		// we make sure the data we got back is from the server?
-		// Some options:
-		//	1.	RecvFrom() tells us the address from which the message
-		//		came. Can compare that with the server's address
-		//		to see if the data came from the server.
-		//	2.	We can actually use connect() on UDP sockets! This doesn't
-		//		offer any guarantees like it does with TCP, but essentially
-		//		this will automatically do step 1 for us -- packets
-		//		received from other sources will be automatically
-		//		filtered out.
-		//		Also, can use send() and recv() after a connect, not just
-		//		sendto() and recvfrom().
-		//	3.	Send data along with the body of our message that establishes
-		//		the ID of that particular message. Like so:
-		//		"REQUEST_ID|MESSAGE_BODY"
-		//	Ex.	"82935|Hi there, server!"
-		//		Then, the server should send back a response that contains
-		//		the same REQUEST_ID prefix. If we get a request id that's
-		//		not the one we were expecting, we discard the message.
-		//		Note that, unlike the previous two options, this is
-		//		a change to the application layer protocol. So,
-		//		the server has to be on board with this technique. The first
-		//		two techniques we can always use.
-		//		The request id must be randomly generated -- if it's
-		//		predictable, it's easy to spoof.
-		// Note that any of these mitigating techniques can be overcome
-		// by a determined assailant. When sending sensitive data, your
-		// only safe option is using well-tested and well-understood
-		// encyption techniques (which will be discussed later).
-		int nbytes_recvd = udp_sock.RecvFrom(buffer, sizeof(buffer), msg_from);
-
-		// nbytes_recvd == -1 => We did not receive data for some reason
-		// nbytes_recvd  > 0  => We received nbytes_recvd bytes.
-		if (nbytes_recvd == -1)
-		{
-			// An error occurred in our receive!
-			if (udp_sock.GetLastError() == Socket::Error::SOCKLIB_ETIMEDOUT)
-			{
-				std::cout << "Timed out. Maybe retrying...\n";
-				// We timed out! Increase the timeout time and try again.
-				wait_time *= 2;
-				udp_sock.SetTimeout(wait_time);
-			}
-		}
+		// Print an error message about what went wrong
+		// This will print a message that looks like this:
+		// recv(): Connection was reset by peer.
+		perror("recv()");
+		// Exit the program -- we can't continue.
+		exit(1);
 	}
 
-	if (wait_time > max_wait_time)
+	// Next, check if client hung up connection.
+	// recv() returns 0 iff this is the case.
+	if (nbytes_recvd == 0)
 	{
-		std::cout << "Never received a message!! Now I really AM sad :(\n";
-		return;
+		// We're done talking to this client -- accept
+		// a new connection.
+		return false;
 	}
 
-	std::cout << "Received " << nbytes_recvd << " bytes from " << msg_from
-		<< ": '";
-	std::cout.write(buffer, nbytes_recvd);
-	std::cout << "'\n";
+	// If we made it here, nbyte_recvd > 0.
+	std::string msg_str(buffer, nbytes_recvd);
+	std::cout << "Received message '" << msg_str << "'\n";
+
+	std::string response("Not implemented.\n");
+	conn_sock.Send(response.data(), response.size());
+
+	// Successful back-and-forth -- ask caller to keep looping.
+	return true;
 }
 
 void do_server()
 {
-	// As usual, make a socket
-	Socket udp_sock(Socket::Family::INET, Socket::Type::DGRAM);
+	// Make TCP Server
+	
+	// First, make a socket as usual
+	// Pick STREAM to make a TCP socket
+	Socket listen_sock(Socket::Family::INET, Socket::Type::STREAM);
 
-	// Now bind to a port so other devices know where to send their data.
-	// Recall that "0.0.0.0" => Receive connections/datagrams from anywhere
-	// and "127.0.0.1" => Only accept data from this machine (i.e., local
-	// processes).
-	Address my_address("0.0.0.0", 10245);
-	udp_sock.Bind(my_address);
+	// Next, bind to an address
+	Address srv_addr("0.0.0.0", 20000);
+	listen_sock.Bind(srv_addr);
 
-	// Now we're ready to receive data!
-	char buffer[4096];
-	Address from_address;
-	size_t nbytes_recvd = udp_sock.RecvFrom(buffer, sizeof(buffer), from_address);
-	std::cout << "Received " << nbytes_recvd << " bytes from " << from_address
-		<< ": '";
-	std::cout.write(buffer, nbytes_recvd);
-	std::cout << "'.\n";
+	// Now, we call Listen().
+	// This turns the given socket into a "Listen Socket",
+	// which can accept() connections, but CANNOT
+	// send() or recv() data.
+	// Listen() takes an optional parameter, `backlog`, which
+	// specifies how many attempted connections can be
+	// queued before new connections are automatically
+	// rejected.
+	listen_sock.Listen();
 
-	std::string msg_to_send("Hello! I'm so sad :)");
-	//size_t nbytes_sent = udp_sock.SendTo(msg_to_send.data(), msg_to_send.size(), from_address);
-	//std::cout << "Sent " << nbytes_sent << " bytes to " << from_address << ".\n";
+	// Servers should loop forever, continuing to accept connections.
+	// If anyone wants to close the server, they can do it over
+	// my dead body.
+	// By which I mean, they can do it over task manager.
+	while (true)
+	{
+		// Now, accept one incoming connection, waiting if necessary.
+		// Returned socket represents an ongoing connection with
+		// a single client, so can call send(), recv(), and even close()
+		// without interfering with the listen socket.
+		std::cout << "Waiting for connection...\n";
+		Socket conn_sock = listen_sock.Accept();
+		std::cout << "Accepted connection.\n";
 
-	while (true) {}
-}
+		// Talk to the client until they hang up.
+		while (srv_handle_connection(conn_sock))
+		{
+			// All logic is handled in srv_handle_connection,
+			// so nothing to do here.
+		}
 
-void generate_random_number() {
-	int num = rand();
-	std::cout << "Picked " << num << "\n.";
+		std::cout << "Other end hung up.\n";
+	}
 }
 
 int main(int argc, char *argv[]) {
 	SockLibInit();
 	defer _([]() {SockLibShutdown();});
 
-	// Do this ONCE per program:
-	srand(time(NULL));
-
-	// Run client if no args passed on command line;
-	// otherwise, run server.
-	if (argc == 1) do_client();
-	else do_server();
+	do_server();
 
 	return 0;
 }
