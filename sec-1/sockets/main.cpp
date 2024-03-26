@@ -7,88 +7,123 @@
 #include "socklib.h"
 #include "defer.h"
 
+float ticks_to_sec(clock_t ticks) {
+	return (float)ticks / CLOCKS_PER_SEC;
+}
 
-// There is a symbol named "x" that has a place
-// in memory. If I try to access "x", the compiler
-// can find it.
-int x = 5;
+float now() {
+	return ticks_to_sec(clock());
+}
 
-// Thre is a symbol named "y", but the compiler doesn't
-// pick a place for it until I tell it to. So, if I try
-// to access it, the compiler won't complain, but when
-// the linker fails to find the actual definition of y,
-// it sure will.
-extern int y;
+std::string to_display = "";
 
-void do_client()
-{
-	const char* srv_host = "68.183.63.185";
-	int srv_port = 9000;
-
-	Socket sock(Socket::Family::INET, Socket::Type::STREAM);
-	Address srv_addr(srv_host, srv_port);
-
-	// Never do this!!!
-	// sock.Bind(srv_addr);
-	Address cli_addr("0.0.0.0", 0);
-
-	// Only valid bind options: "0.0.0.0", "127.0.0.1"
-	sock.Bind(cli_addr);
-
-	// But -- this is the same as having skipped Bind()
-	// and gone right to Connect() (or SendTo() on UDP)
-
-	while (true) {
-		// Simulate talking to a server indefinitely
+class NetworkModule {
+public:
+	NetworkModule():
+		sock(),
+		message_buffer{ 0 }
+	{
+		SockLibInit();
 	}
-}
 
-void say_sizeof(char buffer[]) {
-	std::cout << sizeof(buffer) << std::endl;
-}
+	~NetworkModule() {
+		SockLibShutdown();
+	}
+
+	void Init() {
+		SockLibInit();
+		sock.Create(Socket::Family::INET, Socket::Type::STREAM);
+		sock.Connect(Address("68.183.63.165", 7778));
+		sock.SetNonBlockingMode(true);
+	}
+
+	void Update(float dt, int frame_num) {
+		// Don't need to update this module _every_ frame...
+		// Every other frame is plenty.
+		if (frame_num % 2 == 0) return;
+
+		// Do we have to send out? Then send it.
+		if (rand() % 4 != 0) {
+			std::stringstream ss;
+			ss << "LIST";
+			for (int i = 0; i < 5; i++) {
+				ss << " " << rand() % 500;
+			}
+
+			std::string to_send = ss.str();
+			sock.Send(to_send.c_str(), to_send.size());
+		}
+		
+		// Did anyone send anything back to us?
+		int nbytes_recvd = sock.Recv(message_buffer, sizeof(message_buffer));
+		if (nbytes_recvd == -1) {
+			if (sock.GetLastError() == Socket::SOCKLIB_EWOULDBLOCK) {
+				to_display = "No message this frame.\n";
+			}
+			else {
+				std::cerr << "Unexpected error!\n";
+				abort();
+			}
+		}
+		else if (nbytes_recvd == 0) {
+			std::cerr << "Connection unexpectedly closed!\n";
+			abort();
+		}
+		else {
+			to_display = std::string(message_buffer, nbytes_recvd);
+		}
+	}
+
+private:
+	Socket sock;
+	char message_buffer[4096];
+};
 
 int main(int argc, char *argv[]) {
-	SockLibInit();
-	defer _([]() {SockLibShutdown();});
+	// Initialize the system
+	float last_frame = now();
+	bool quit = false;
+	int frame_num = 0;
+	// One second per frame -- wow, that's slow!
+	const float targetDt = 1;
 
-	// do_client();
+	// Initialize the player "object"
+	float character_pos = 0;
+	float xVelocity = 1;
 
-	char buffer[40];
-	size_t bufsize = 20;
+	// Initialize the socket system
+	NetworkModule netsys;
+	netsys.Init();
 
-	std::string my_str(buffer, bufsize);
-	char *buffer_p = buffer;
-	//   ^ THIS IS THE IMPORTANT PART
-//  ^^^^ NOT THIS!
+	while (!quit) {
+		float time = now();
+		float dt = time - last_frame;
+		if (dt < targetDt)
+			continue;
+		frame_num++;
 
-	std::stringstream ss("250 Hello, world!");
-	int first_int;
-	ss >> first_int;
-	// ^^ stringstream::operator>>()
-	if (ss.fail()) {
-		std::cout << "Failed to convert string to int.\n";
-		ss.clear();
-		std::string first_word;
-		ss >> first_word;
-		std::cout << "First word is " << first_word << "\n";
+		// Process input -- is the keyboard pressed,
+		// is the mouse down, etc.?
+		netsys.Update(dt, frame_num);
+		
+		// Update all the game objects
+		character_pos += xVelocity * dt;
+
+		// Render
+		// Clear the back buffer
+		system("cls");
+
+		for (int i = 0; i < character_pos; i++) {
+			std::cout << " ";
+		}
+		std::cout << "@";
+		std::cout << std::endl << std::endl;
+		std::cout << to_display;
+
+		to_display = "";
+		last_frame = time;
 	}
 
-	const char* str = " 20.5f         abc";
-	char* end;
-	double val = strtod(str, &end);
-	size_t chars_converted = end - str;
-	std::cout << "Successfully converted " << chars_converted << " chars.\n";
-	if (end == str || isalpha(*end)) {
-		std::cout << "Failed to convert.\n";
-	}
-
-	return 0;
-	ss << "more text";
-	// ^^ stringstream::operator<<()
-
-	say_sizeof(buffer);
-	std::cout << sizeof(buffer) << std::endl;
-	std::cout << sizeof(buffer_p) << std::endl;
 
 	return 0;
 }
