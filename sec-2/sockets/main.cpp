@@ -7,6 +7,66 @@
 #include "socklib.h"
 #include "defer.h"
 
+class GameObject {
+
+};
+
+class Weapon {
+
+};
+
+class ProjectileWeapon : public Weapon {
+public:
+	int ammo;
+	int max_ammo;
+	ProjectileWeapon();
+};
+
+class Player : public GameObject {
+public:
+	void Update();
+	void Render();
+
+public:
+	float x, y, z;
+	std::string name;
+	bool isGrounded;
+	int ammo;
+	ProjectileWeapon* weapon;
+	int max_health;
+};
+
+union Converter {
+	Player as_player;
+	char as_bytes[sizeof(Player)];
+};
+
+void convert_to_bytes(char* bytes, Player* player, size_t nbytes) {
+	char* player_as_bytes = (char*)player;
+	for (size_t i = 0; i < nbytes; i++) {
+		bytes[i] = player_as_bytes[i];
+	}
+}
+
+void player_as_bytes_demo() {
+	Player player;
+	player.x = 1;
+	player.y = 2;
+	player.z = 3;
+	player.name = "789";
+	player.ammo = 5;
+	player.weapon = nullptr;
+	player.max_health = 6;
+
+	char bytes[sizeof(Player)];
+	convert_to_bytes(bytes, &player, sizeof(Player));
+	puts("Player as bytes:");
+	for (int i = 0; i < sizeof(bytes); i++) {
+		printf(" 0x%x", (unsigned char)bytes[i]);
+	}
+	puts("");
+}
+
 float clocks_to_secs(clock_t clocks) {
 	return (float)clocks / CLOCKS_PER_SEC;
 }
@@ -16,6 +76,9 @@ float time_now() {
 }
 
 int main(int argc, char *argv[]) {
+
+	player_as_bytes_demo();
+	return 0;
 
 	// Game loop structure
 	// ===================
