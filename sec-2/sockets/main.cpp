@@ -7,110 +7,104 @@
 #include "socklib.h"
 #include "defer.h"
 
-void do_client() {
-	const char* srv_host = "65.183.63.165";
-	int srv_port = 20000;
-
-	Socket sock(Socket::Family::INET, Socket::Type::STREAM);
-	Address srv_addr(srv_host, srv_port);
-
-	// When you bind, you have two IP address options:
-	// "127.0.0.1" -> Local connections only (this machine)
-	// "0.0.0.0" -> Any network connection
-
-	Address cli_addr("0.0.0.0", 0);
-
-	// Never do this!
-	sock.Bind(cli_addr);
-
-	// So, if we call Bind on a client, we have to use the
-	// address "0.0.0.0:0".
-	// So, all function calls that initiate a connection
-	// just do this for you if you haven't done it already.
-	// Connect(), SendTo(). These call Bind() for you, if
-	// you haven't.
-
-	while (true) {
-		// Simulate talking to the server indefinitely
-	}
+float clocks_to_secs(clock_t clocks) {
+	return (float)clocks / CLOCKS_PER_SEC;
 }
 
-struct MyStruct {
-	int x;
-	int y;
-};
+float time_now() {
+	return clocks_to_secs(clock());
+}
 
 int main(int argc, char *argv[]) {
 
-	/*
-	* 5. Application
-	* 4. Transport
-	* 3. Network
-	* 2. Data Link
-	* 1. Physical
-	*/
+	// Game loop structure
+	// ===================
+	// 
+	//	While the game is running:
+	//		If enough time has elapsed:
+	//			Poll inputs
+	//			Update all game objects
+	//			Render game to the screen
 
+	// Initialize system variables
+	bool quit = false;
+	float last_frame_time = time_now();
+	float targetDt = 1;
+	std::string msg_to_display;
 
-	/*
-	*		 [ R1 ] -> [ R2 ]     [ R5 ]
-	*		/     \               /
-	* [ C ]        [ R3 ] -> [ R4 ] -> [ S ]
-	*  To: 1.2.3.4						1.2.3.4
-	* 
-	*/
+	// Initialize starting game objects
+	float character_pos = 0;
+	float xVelocity = 1;
+
+	// Initialize networking module
 	SockLibInit();
 	defer _([]() {SockLibShutdown();});
+	Socket sock(Socket::Family::INET, Socket::Type::STREAM);
+	sock.Connect(Address("68.183.63.165", 7778));
+	sock.SetNonBlockingMode(true);
+	char message_buffer[4096];
 
-	char buffer[64];
-	char* p_buffer = buffer;
+	// Run game loop
+	while (!quit) {
+		float now = time_now();
+		float dt = now - last_frame_time;
+		if (dt < targetDt)
+			continue;
 
-	sizeof(buffer);
-	sizeof(p_buffer);
+		// Poll inputs
+		if (rand() % 2 == 0) {
+			char buffer[64];
+			size_t strsize = 0;
+			strsize += snprintf(buffer, sizeof(buffer), "LIST");
+			for (int i = 0; i < 5; i++) {
+				strsize += snprintf(buffer + strsize,
+					sizeof(buffer) - strsize,
+					" %i", rand() % 500);
+			}
 
-	size_t bufsize = 20;
-	for (int i = 0; i < bufsize; i++) {
-		buffer[i] = 'a' + i;
+			/*
+			std::stringstream ss;
+			ss << "LIST";
+			for (int i = 0; i < 5; i++) {
+				ss << " " << rand() % 500;
+			}
+			*/
+			sock.Send(buffer, strsize);
+		}
+
+		int nbytes_recvd = sock.Recv(message_buffer, sizeof(message_buffer));
+		if (nbytes_recvd == -1) {
+			if (sock.GetLastError() == Socket::SOCKLIB_EWOULDBLOCK) {
+				msg_to_display = "No message this frame.\n";
+			}
+			else {
+				perror("recv()");
+				abort();
+			}
+		}
+		else if (nbytes_recvd == 0) {
+			std::cerr << "Connection hung up unexpectedly!\n";
+			abort();
+		}
+		else {
+			msg_to_display = std::string(message_buffer, nbytes_recvd);
+		}
+
+		// Update all game objects
+		character_pos += xVelocity * dt;
+
+		// Render game to the screen
+		// Clear back buffer
+		system("cls");
+		// Draw to back buffer
+		for (int i = 0; i < character_pos; i++) {
+			std::cout << " ";
+		}
+		std::cout << "@";
+		std::cout << "\n\n" << msg_to_display;
+
+		last_frame_time = now;
 	}
-
-	std::string bufstring(buffer, bufsize);
-	std::cout << bufstring << "\n";
-
-	std::string my_string("123\000456", 6);
-	const char* str = my_string.c_str();
-	std::cout << strlen(str) << "\n";
-	std::cout << (int)my_string[3] << "\n";
-	std::cout << my_string.size() << "\n";
-	std::cout << my_string << "\n";
-
-	const char* num_str = "    abc   234  abc";
-
-	std::stringstream ss(num_str);
-	int ss_val;
-	ss >> ss_val;
-	if (ss.fail())
-	{
-		std::cout << "Failed to convert.\n";
-	}
-	else
-	{
-		std::cout << "ss_val is " << ss_val << "\n";
-	}
-
-
-	char* end;
-	int val = strtol(num_str, &end, 10);
-	size_t nchars_converted = end - num_str;
-	std::cout << "Converted " << nchars_converted << " chars.\n";
-	if (end == num_str)
-	{
-		std::cout << "Failed to convert.\n";
-	}
-	else
-	{
-		std::cout << "Val is " << val << "\n";
-	}
-
-	// do_client();
 
 	return 0;
 }
