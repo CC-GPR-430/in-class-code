@@ -7,6 +7,14 @@
 #include "socklib.h"
 #include "defer.h"
 
+void print_as_bytes(char* object, size_t bytes) {
+	for (int i = 0; i < bytes; i++) {
+		if (i % 16 == 0) printf("\n");
+		printf(" 0x%x", (unsigned char)object[i]);
+	}
+	printf("\n");
+}
+
 float ticks_to_sec(clock_t ticks) {
 	return (float)ticks / CLOCKS_PER_SEC;
 }
@@ -16,6 +24,120 @@ float now() {
 }
 
 std::string to_display = "";
+
+
+
+class ToInspect {
+public:
+	int x;
+	int y;
+	char* name;
+
+	void Update() {}
+};
+
+/* vtable aside
+struct GameObject_Vtable {
+	void (*Update)(GameObject_Struct* ths, float dt);
+	void (*Render)(GameObject_Struct* ths);
+};
+
+GameObject_Vtable go_vtable = {
+	go_update,
+	go_render
+};
+
+GameObject_Vtable player_vtable = {
+	player_update,
+	player_render
+};
+
+struct GameObject_Struct {
+	int x, y, z;
+	int xVel, yVel, zVel;
+	void* sprite;
+	GameObject_Vtable* vtable;
+};
+*/
+
+// GameObject* go = new GameObject();
+// go->Update(dt);
+
+// Same as:
+// GameObject_Struct* go = create_go_struct();
+//    go->vtable = go_vtable;
+// go->vtable->Update(&go, dt);
+
+
+class GameObject {
+public:
+	int x, y, z;
+	int xVel, yVel, zVel;
+	void* sprite;
+
+	virtual void Update(float dt) {
+		x += xVel * dt;
+		y += yVel * dt;
+		z += zVel * dt;
+	}
+
+	void Render() {
+		// Renders the sprite at position (x, y, z)
+	}
+};
+
+size_t SerializeGameObjectAsString(const GameObject* go, char* buffer, size_t buffer_len)
+{
+	// One option: Write the game object as text
+	std::stringstream go_strstream;
+	go_strstream << go->x << " "
+		<< go->y << " "
+		<< go->z << " "
+		<< go->xVel << " "
+		<< go->yVel << " "
+		<< go->zVel;
+	std::string go_str = go_strstream.str();
+	size_t characters_written = 0;
+	for (int i = 0; i < go_str.size() && i < buffer_len; i++)
+	{
+		characters_written++;
+		buffer[i] = go_str[i];
+	}
+	// Done! Game object now lives in buffer as a string.
+
+	return characters_written;
+}
+
+template<typename T>
+size_t copy_to_buffer(char* buffer, T* value, size_t buffer_len) {
+	if (sizeof(T) > buffer_len) return 0;
+	char* as_bytes = (char*)value;
+	for (int i = 0; i < sizeof(T); i++) {
+		buffer[i] = as_bytes[i];
+	}
+	return sizeof(T);
+}
+
+size_t SerializeGameObjectAsBytes(const GameObject* go, char* buffer, size_t buffer_len)
+{
+	// Another option: Write as binary
+	size_t write_head = 0;
+	write_head += copy_to_buffer(buffer, &go->x, buffer_len);
+	write_head += copy_to_buffer(&buffer[write_head], &go->y, buffer_len - write_head);
+	write_head += copy_to_buffer(&buffer[write_head], &go->z, buffer_len - write_head);
+	write_head += copy_to_buffer(&buffer[write_head], &go->xVel, buffer_len - write_head);
+	write_head += copy_to_buffer(&buffer[write_head], &go->yVel, buffer_len - write_head);
+	write_head += copy_to_buffer(&buffer[write_head], &go->zVel, buffer_len - write_head);
+	return write_head;
+}
+
+class Player : public GameObject {
+	void Update(float dt) override {
+		// If a button is down, move
+	}
+};
+
+std::vector<GameObject*> objects;
 
 class NetworkModule {
 public:
@@ -41,6 +163,10 @@ public:
 		// Don't need to update this module _every_ frame...
 		// Every other frame is plenty.
 		if (frame_num % 2 == 0) return;
+
+		for (const GameObject* go : objects) {
+			sock.Send((char*)go, sizeof(GameObject));
+		}
 
 		// Do we have to send out? Then send it.
 		if (rand() % 4 != 0) {
@@ -94,6 +220,37 @@ int main(int argc, char *argv[]) {
 	// Initialize the socket system
 	NetworkModule netsys;
 	netsys.Init();
+
+	GameObject go;
+	go.x = 100001;
+	go.y = 100002;
+	go.z = 100003;
+	go.xVel = 100010;
+	go.yVel = 100011;
+	go.zVel = 100012;
+
+	go.sprite = "Hello, there!";
+	std::cout << "===== Game Object as Bytes =====\n";
+	print_as_bytes((char*)&go, sizeof(go));
+
+	{
+		char buffer[4096];
+		size_t amt_written = SerializeGameObjectAsString(&go, buffer, sizeof(buffer));
+		std::string go_str(buffer, amt_written);
+		std::cout << "===== Game Object as String =====\n";
+		std::cout << "===== Size: " << amt_written << "   ====\n";
+		std::cout << "\"" << go_str << "\"" << std::endl;
+	}
+
+	{
+		char buffer[4096] = { 0 };
+		size_t amt_written = SerializeGameObjectAsBytes(&go, buffer, sizeof(buffer));
+		std::cout << "==== Serialized game object as Bytes =====\n";
+		std::cout << "===== Size: " << amt_written << "   ====\n";
+		print_as_bytes(buffer, amt_written);
+	}
+
+	return 0;
 
 	while (!quit) {
 		float time = now();
