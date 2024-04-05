@@ -93,6 +93,16 @@ size_t copy_to_buffer(char* buffer, T* object, size_t buffer_size)
 	return sizeof(T);
 }
 
+size_t copy_to_buffer(char* buffer, int* object, size_t buffer_size)
+{
+	if (buffer_size < sizeof(int)) return 0;
+	char* object_as_bytes = (char*)object;
+	for (int i = 0; i < sizeof(int); i++) {
+		buffer[i] = object_as_bytes[i];
+	}
+	return sizeof(int);
+}
+
 // Second option: Serialize as binary
 size_t SerializeGameObjectAsBytes(const GameObject* go, char* buffer, size_t buffer_size)
 {
@@ -105,6 +115,51 @@ size_t SerializeGameObjectAsBytes(const GameObject* go, char* buffer, size_t buf
 	bytes_written += copy_to_buffer(&buffer[bytes_written], &go->zVel, buffer_size - bytes_written);
 	return bytes_written;
 }
+
+class OutByteStream {
+public:
+	// Start here...
+	void Insert(int x);
+	void Insert(float x);
+
+	char* data();
+	size_t size();
+
+	// ...Build up to here ...
+	// Psst... Make this length-prefixed
+	void Insert(char* x);
+	void Insert(std::vector<int> x);
+
+private:
+	// ????
+};
+
+/*
+* Example use:
+* 
+* void SendGameObject(const GameObject* go, Socket& sock) {
+*	OutByteStream s;
+*	s.Insert(go->x);
+*	s.Insert(go->y);
+*	s.Insert(go->z);
+*	sock.Send(s.data(), s.size());
+* }
+*/
+
+/*
+* Example use:
+*
+* void ReadGameObject(const GameObject* go, Socket& sock) {
+*	InByteStream s;
+*	char buffer[4096];
+*	int nbytes_recvd = sock.Recv(buffer, sizeof(buffer));
+*	if (nbytes_recvd <= 0) abort();
+*	s.SetBuffer(buffer, nbytes_recvd);
+*	s.Read(go->x);
+*	s.Read(go->y);
+*	s.Read(go->z);
+* }
+*/
 
 void byte_demo()
 {
