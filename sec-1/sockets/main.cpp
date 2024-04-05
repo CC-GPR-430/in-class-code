@@ -25,8 +25,6 @@ float now() {
 
 std::string to_display = "";
 
-
-
 class ToInspect {
 public:
 	int x;
@@ -118,6 +116,12 @@ size_t copy_to_buffer(char* buffer, T* value, size_t buffer_len) {
 	return sizeof(T);
 }
 
+template<typename T>
+size_t read_from_buffer(char* buffer, T* out_value) {
+	memcpy(out_value, buffer, sizeof(T));
+	return sizeof(T);
+}
+
 size_t SerializeGameObjectAsBytes(const GameObject* go, char* buffer, size_t buffer_len)
 {
 	// Another option: Write as binary
@@ -129,6 +133,18 @@ size_t SerializeGameObjectAsBytes(const GameObject* go, char* buffer, size_t buf
 	write_head += copy_to_buffer(&buffer[write_head], &go->yVel, buffer_len - write_head);
 	write_head += copy_to_buffer(&buffer[write_head], &go->zVel, buffer_len - write_head);
 	return write_head;
+}
+
+size_t DeserializeGameObjectFromBytes(GameObject* go, char* buffer, size_t buffer_len)
+{
+	size_t read_head = 0;
+	read_head += read_from_buffer(buffer, &go->x);
+	read_head += read_from_buffer(&buffer[read_head], &go->y);
+	read_head += read_from_buffer(&buffer[read_head], &go->z);
+	read_head += read_from_buffer(&buffer[read_head], &go->xVel);
+	read_head += read_from_buffer(&buffer[read_head], &go->yVel);
+	read_head += read_from_buffer(&buffer[read_head], &go->zVel);
+	return read_head;
 }
 
 class Player : public GameObject {
@@ -205,7 +221,64 @@ private:
 	char message_buffer[4096];
 };
 
+int run_server() {
+	// Simple demo to demonstrate serialization
+	// over TCP
+	// Create a socket, wait for folks to connect
+	Socket listen_sock(Socket::Family::INET, Socket::Type::STREAM);
+	listen_sock.Bind(Address("0.0.0.0", 36925));
+	listen_sock.Listen();
+
+	while (true) {
+		Socket conn_sock = listen_sock.Accept();
+		bool connection_alive = true;
+		std::vector<GameObject*> game_objects;
+		while (connection_alive) {
+			char buffer[4096];
+
+			int nbytes_recvd = conn_sock.Recv(buffer, sizeof(buffer));
+			if (nbytes_recvd == -1) {
+				if (conn_sock.GetLastError() == Socket::SOCKLIB_ETIMEDOUT) {
+					// No data was available to receive.
+				}
+				else {
+					perror("recv()");
+					exit(1);
+				}
+			}
+			// Expect data in a specific format --
+			//     First, the number of game objects
+			int num_gameobjects = 0;
+			read_from_buffer(buffer, &num_gameobjects);
+			std::cout << "Reading " << num_gameobjects << " objects.\n";
+			game_objects.clear();
+			game_objects.reserve(num_gameobjects);
+			size_t buffer_offset = 0;
+
+			for (int i = 0; i < num_gameobjects; i++) {
+				GameObject* go = new GameObject;
+				buffer_offset += DeserializeGameObjectFromBytes(go,
+					&buffer[buffer_offset], sizeof(buffer) - buffer_offset);
+				game_objects.push_back(go);
+			}
+		}
+	}
+
+	// Keep a list of game objects
+
+
+	// When we receive a list of game objects, replicate it
+	//    on our end
+}
+
 int main(int argc, char *argv[]) {
+	SockLibInit();
+	atexit(SockLibShutdown);
+
+	if (argc > 1) {
+		return run_server();
+	}
+
 	// Initialize the system
 	float last_frame = now();
 	bool quit = false;
