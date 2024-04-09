@@ -135,6 +135,13 @@ size_t SerializeGameObjectAsBytes(const GameObject* go, char* buffer, size_t buf
 	return write_head;
 }
 
+/*
+* GameObject go;
+* char buffer[4096];
+* size_t nbytes_written = SerializeGameObjectAsBytes(&go, buffer, sizeof(buffer);
+* sock.Send(buffer, nbytes_written);
+*/
+
 size_t DeserializeGameObjectFromBytes(GameObject* go, char* buffer, size_t buffer_len)
 {
 	size_t read_head = 0;
@@ -146,6 +153,13 @@ size_t DeserializeGameObjectFromBytes(GameObject* go, char* buffer, size_t buffe
 	read_head += read_from_buffer(&buffer[read_head], &go->zVel);
 	return read_head;
 }
+
+/*
+* GameObject go;
+* char buffer[4096];
+* size_t nbytes_recvd = sock.Read(buffer, sizeof(buffer));
+* DeserializeGameObjectFromBytes(&go, buffer, nbytes_recvd);
+*/
 
 class Player : public GameObject {
 	void Update(float dt) override {
