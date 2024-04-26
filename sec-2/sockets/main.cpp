@@ -93,6 +93,17 @@ size_t copy_to_buffer(char* buffer, T* object, size_t buffer_size)
 	return sizeof(T);
 }
 
+template <typename T>
+size_t copy_from_buffer(const char* buffer, T* object, size_t buffer_size)
+{
+	if (sizeof(T) > buffer_size) return 0;
+	char* object_as_bytes = (char*)object;
+	for (int i = 0; i < sizeof(T); i++) {
+		object_as_bytes[i] = buffer[i];
+	}
+	return sizeof(T);
+}
+
 size_t copy_to_buffer(char* buffer, int* object, size_t buffer_size)
 {
 	if (buffer_size < sizeof(int)) return 0;
@@ -116,14 +127,71 @@ size_t SerializeGameObjectAsBytes(const GameObject* go, char* buffer, size_t buf
 	return bytes_written;
 }
 
+size_t DeserializeGameObjectAsBytes(GameObject* go, char* buffer, size_t buffer_size)
+{
+	size_t bytes_read = 0;
+
+	bytes_read += copy_from_buffer(&buffer[bytes_read], &go->x, buffer_size - bytes_read);
+	bytes_read += copy_from_buffer(&buffer[bytes_read], &go->y, buffer_size - bytes_read);
+	bytes_read += copy_from_buffer(&buffer[bytes_read], &go->z, buffer_size - bytes_read);
+	bytes_read += copy_from_buffer(&buffer[bytes_read], &go->xVel, buffer_size - bytes_read);
+	bytes_read += copy_from_buffer(&buffer[bytes_read], &go->yVel, buffer_size - bytes_read);
+	bytes_read += copy_from_buffer(&buffer[bytes_read], &go->zVel, buffer_size - bytes_read);
+
+	return bytes_read;
+}
+
+/*
+* // To send a gameobject
+* GameObject go; // Pretend this data in it
+* char buffer[4096];
+* size_t nbytes_written = SerializeGameObjectAsBytes(&go, buffer, sizeof(buffer));
+* sock.Send(buffer, nbytes_written);
+*/
+
+/*
+* // To recv a gameobject
+* GameObject go;
+* char buffer[4096];
+* size_t nbytes_recvd = sock.Recv(buffer, sizeof(buffer));
+* DeserializeGameObjectAsBytes(&go, buffer, nbytes_recvd);
+*/
+
 class OutByteStream {
 public:
-	// Start here...
-	void Insert(int x);
-	void Insert(float x);
+	OutByteStream() {
+		buffer = new char[4096];
+		buffer_size = 4096;
+		write_head = 0;
+	}
 
-	char* data();
-	size_t size();
+	~OutByteStream() {
+		delete[] buffer;
+	}
+
+	// Start here...
+	bool Insert(int x) {
+		if (bytes_remaining() < sizeof(int)) return false;
+		char* object_as_bytes = (char*)x;
+		for (int i = 0; i < sizeof(int); i++) {
+			buffer[i] = object_as_bytes[i];
+		}
+		return true;
+	}
+
+	bool Insert(const GameObject& go) {
+		if (bytes_remaining() < sizeof(GameObject)) return false;
+		return Insert(go.x)
+			&& Insert(go.y)
+			&& Insert(go.z)
+			&& Insert(go.xVel)
+			&& Insert(go.yVel)
+			&& Insert(go.zVel);
+	}
+
+	char* data() { return buffer; }
+	size_t size() { return write_head; }
+	size_t bytes_remaining() { return buffer_size - write_head; }
 
 	// ...Build up to here ...
 	// Psst... Make this length-prefixed
@@ -131,8 +199,34 @@ public:
 	void Insert(std::vector<int> x);
 
 private:
-	// ????
+	char* buffer;
+	size_t buffer_size;
+	size_t write_head;
 };
+
+OutByteStream& operator<<(OutByteStream& stream, int x)
+{
+	stream.Insert(x);
+	return stream;
+}
+
+// Could put this in GameObject.h/.cpp
+OutByteStream& operator<<(OutByteStream& stream, const GameObject& go)
+{
+	stream << go.x << go.y << go.z << go.xVel << go.yVel << go.zVel;
+	return stream;
+}
+
+void SendGameObject(const GameObject* go, Socket& socket) {
+	OutByteStream stream;
+	stream.Insert(go->x);
+	stream.Insert(go->y);
+	stream.Insert(go->z);
+	stream.Insert(go->xVel);
+	stream.Insert(go->yVel);
+	stream.Insert(go->zVel);
+	socket.Send(stream.data(), stream.size());
+}
 
 /*
 * Example use:
@@ -204,6 +298,11 @@ float time_now() {
 }
 
 int main(int argc, char *argv[]) {
+	int x = -1;
+	unsigned int y = x;
+	std::cout << y << std::endl;
+	x = y;
+	std::cout << x << std::endl;
 	byte_demo();
 	return 0;
 

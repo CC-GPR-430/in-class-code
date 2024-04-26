@@ -285,6 +285,41 @@ int run_server() {
 	//    on our end
 }
 
+enum MOOD {
+	HUNGRY = 1,
+	THIRSTY = 2,
+	LONELY = 4,
+	TIRED = 8,
+	BORED = 16,
+	OVERWORKED = 32,
+	NERVOUS = 64,
+	FEARFUL = 128,
+};
+
+struct Pawn {
+	char mood;
+};
+
+void Update(Pawn* pawn) {
+	// 0000 0000
+	pawn->mood |= HUNGRY;
+	// 0000 0001
+	pawn->mood |= TIRED;
+	// 0000 1001
+}
+
+bool IsOverworked(const Pawn* pawn) {
+	return pawn->mood & OVERWORKED;
+}
+
+size_t SerializePawn(const Pawn* p, char* buffer, size_t cap) {
+	return copy_to_buffer(buffer, &p->mood, cap);
+}
+
+size_t DeserializePawn(const Pawn* p, char* buffer, size_t cap) {
+	return read_from_buffer(buffer, &p->mood);
+}
+
 int main(int argc, char *argv[]) {
 	SockLibInit();
 	atexit(SockLibShutdown);

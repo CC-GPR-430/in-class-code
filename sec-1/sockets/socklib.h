@@ -38,6 +38,7 @@ class Socket
   enum Error {
     SOCKLIB_ETIMEDOUT,
     SOCKLIB_EWOULDBLOCK,
+    SOCKLIB_ECONNRESET,
   };
 
   Socket();

@@ -187,6 +187,10 @@ int Socket::Recv(char *buffer, int size) {
         _last_error = SOCKLIB_EWOULDBLOCK;
         return -1;
     }
+    else if (WSAGetLastError() == WSAECONNRESET) {
+        _last_error = SOCKLIB_ECONNRESET;
+        return -1;
+    }
   }
   // Crash on all other errors
   require(len >= 0, "recv()");
